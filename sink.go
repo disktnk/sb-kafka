@@ -214,6 +214,9 @@ func convertToSaramaEncoder(v data.Value) (sarama.Encoder, error) {
 	case data.TypeString:
 		vs, _ := data.AsString(v)
 		return sarama.StringEncoder(vs), nil
+	case data.TypeBlob:
+		vb, _ := data.AsBlob(v)
+		return sarama.ByteEncoder(vb), nil
 	default:
 		// TODO required to support other data type
 		return nil, fmt.Errorf("%s is not supported", v.Type())
