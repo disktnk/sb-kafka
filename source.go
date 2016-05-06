@@ -65,6 +65,7 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (
 	s := &source{
 		topic:    topic,
 		consumer: consumer,
+		stop:     make(chan struct{}),
 	}
 	return core.ImplementSourceStop(s), nil
 }
@@ -72,25 +73,38 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (
 type source struct {
 	topic    string
 	consumer sarama.PartitionConsumer
+	stop     chan struct{}
 }
 
 func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
-	// TODO need to catch consumer's error
-	// <-s.consumer.Errors()
-	msg := <-s.consumer.Messages()
-	now := time.Now()
-	t := &core.Tuple{
-		ProcTimestamp: now,
-		Timestamp:     now,
+	var err error
+loop:
+	for {
+		select {
+		case lerr := <-s.consumer.Errors():
+			ctx.Log().Errorln(lerr) // TODO: it should be stopped?
+		case msg := <-s.consumer.Messages():
+			now := time.Now()
+			t := &core.Tuple{
+				ProcTimestamp: now,
+				Timestamp:     now, // TODO: get message's timestamp
+			}
+			t.Data = data.Map{
+				"topic": data.String(s.topic),
+				"key":   data.Blob(msg.Key),
+				"value": data.Blob(msg.Value),
+			}
+			if err = w.Write(ctx, t); err != nil {
+				break loop
+			}
+		case <-s.stop:
+			break loop
+		}
 	}
-	t.Data = data.Map{
-		"topic": data.String(s.topic),
-		"key":   data.Blob(msg.Key),
-		"value": data.Blob(msg.Value),
-	}
-	return w.Write(ctx, t)
+	return err
 }
 
 func (s *source) Stop(ctx *core.Context) error {
+	s.stop <- struct{}{}
 	return s.consumer.Close()
 }
