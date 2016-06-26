@@ -77,8 +77,6 @@ type source struct {
 }
 
 func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
-	var err error
-loop:
 	for {
 		select {
 		case lerr := <-s.consumer.Errors():
@@ -94,17 +92,17 @@ loop:
 				"key":   data.Blob(msg.Key),
 				"value": data.Blob(msg.Value),
 			}
-			if err = w.Write(ctx, t); err != nil {
-				break loop
+			if err := w.Write(ctx, t); err != nil {
+				return err
 			}
 		case <-s.stop:
-			break loop
+			return core.ErrSourceStopped
 		}
 	}
-	return err
+	return nil
 }
 
 func (s *source) Stop(ctx *core.Context) error {
-	s.stop <- struct{}{}
+	close(s.stop)
 	return s.consumer.Close()
 }
