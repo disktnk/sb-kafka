@@ -1,8 +1,8 @@
 package plugin
 
 import (
+	"github.com/disktnk/sb-kafka"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
-	"pfi/sensorbee/kafka"
 )
 
 func init() {
